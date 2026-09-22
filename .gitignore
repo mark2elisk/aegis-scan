@@ -1,0 +1,23 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Backend (Python)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Frontend (Next.js)
+node_modules/
+.next/
+out/
+frontend/next-env.d.ts
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
