@@ -2,7 +2,12 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
 clamd==1.0.2
-python-magic==0.4.27
+# libmagic no viene de serie en Windows: en Linux/macOS (producción y Docker)
+# se usa el binding sobre la librería del sistema; en Windows, el paquete que
+# ya trae la DLL empaquetada, para que "pip install" funcione sin pasos extra.
+python-magic==0.4.27; sys_platform != "win32"
+python-magic-bin==0.4.14; sys_platform == "win32"
 openai==1.51.0
 pydantic-settings==2.5.2
 python-dotenv==1.0.1
+slowapi==0.1.9

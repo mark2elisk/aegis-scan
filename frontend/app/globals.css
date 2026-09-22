@@ -34,19 +34,25 @@ main {
 }
 
 .zona-drop {
+  display: block;
   border: 2px dashed var(--borde);
   border-radius: 12px;
   padding: 32px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.zona-drop:hover {
+.zona-drop:hover,
+.zona-drop.arrastrando {
   border-color: var(--seguro);
+  background: color-mix(in srgb, var(--seguro) 8%, transparent);
 }
 
 .boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   background: var(--seguro);
   color: #06120c;
   border: none;
@@ -59,6 +65,19 @@ main {
 .boton:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(6, 18, 12, 0.35);
+  border-top-color: #06120c;
+  border-radius: 50%;
+  animation: girar 0.7s linear infinite;
+}
+
+@keyframes girar {
+  to { transform: rotate(360deg); }
 }
 
 .resultado {

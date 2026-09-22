@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, DragEvent } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -24,6 +24,7 @@ type ResultadoEscaneo = {
 
 export default function Home() {
   const [archivo, setArchivo] = useState<File | null>(null);
+  const [arrastrando, setArrastrando] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoEscaneo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +56,24 @@ export default function Home() {
     }
   }
 
+  const onDrop = useCallback((e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setArrastrando(false);
+    const soltado = e.dataTransfer.files?.[0];
+    if (soltado) {
+      setArchivo(soltado);
+      setResultado(null);
+      setError(null);
+    }
+  }, []);
+
+  const onDragOver = useCallback((e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setArrastrando(true);
+  }, []);
+
+  const onDragLeave = useCallback(() => setArrastrando(false), []);
+
   return (
     <main>
       <h1>AegisScan</h1>
@@ -65,17 +84,23 @@ export default function Home() {
       </p>
 
       <div className="tarjeta">
-        <label className="zona-drop">
+        <label
+          className={`zona-drop${arrastrando ? " arrastrando" : ""}`}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+        >
           <input
             type="file"
             style={{ display: "none" }}
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
           />
-          {archivo ? archivo.name : "Haz clic para elegir un archivo"}
+          {archivo ? archivo.name : "Arrastra un archivo aquí o haz clic para elegirlo"}
         </label>
 
         <div style={{ marginTop: 16 }}>
           <button className="boton" onClick={escanear} disabled={!archivo || cargando}>
+            {cargando && <span className="spinner" aria-hidden="true" />}
             {cargando ? "Escaneando…" : "Escanear archivo"}
           </button>
         </div>

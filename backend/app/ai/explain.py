@@ -8,8 +8,20 @@ maliciosos a un servicio de terceros.
 Si no hay clave de API configurada, se devuelve una explicación por defecto
 generada localmente (sin IA) para que el servicio siga funcionando igual.
 """
+import logging
+
 from app.config import settings
 from app.models import Heuristicas, Veredicto
+
+logger = logging.getLogger("aegisscan.ai")
+
+# Un único cliente reutilizado entre peticiones: crear un cliente HTTP nuevo
+# en cada llamada sería un coste innecesario (conexión, TLS) en cada escaneo.
+_cliente_openai = None
+if settings.ai_provider != "none" and settings.openai_api_key:
+    from openai import OpenAI
+
+    _cliente_openai = OpenAI(api_key=settings.openai_api_key)
 
 SYSTEM_PROMPT = """Eres el asistente de AegisScan, una plataforma de escaneo de archivos.
 Recibes el resultado ya calculado de un escaneo (veredicto, firma de ClamAV si la hay,
@@ -62,16 +74,16 @@ def _prompt_usuario(veredicto: Veredicto, heuristicas: Heuristicas, firma: str |
 
 
 def explicar(veredicto: Veredicto, heuristicas: Heuristicas, firma: str | None = None) -> str:
-    if settings.ai_provider == "none" or not settings.openai_api_key:
+    """Bloqueante (llamada de red síncrona) — quien la use desde un endpoint
+    async debe ejecutarla en un threadpool para no bloquear el event loop."""
+    if _cliente_openai is None:
         return _explicacion_local(veredicto, heuristicas, firma)
 
     try:
-        from openai import OpenAI
-
-        cliente = OpenAI(api_key=settings.openai_api_key)
-        respuesta = cliente.chat.completions.create(
+        respuesta = _cliente_openai.chat.completions.create(
             model=settings.openai_model,
             temperature=0.3,
+            timeout=15,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": _prompt_usuario(veredicto, heuristicas, firma)},
@@ -79,5 +91,6 @@ def explicar(veredicto: Veredicto, heuristicas: Heuristicas, firma: str | None =
         )
         texto = respuesta.choices[0].message.content
         return texto.strip() if texto else _explicacion_local(veredicto, heuristicas, firma)
-    except Exception:  # noqa: BLE001 — si la IA falla, no debe tumbar el escaneo
+    except Exception as exc:  # noqa: BLE001 — si la IA falla, no debe tumbar el escaneo
+        logger.warning("Fallo al generar la explicación con IA, uso la local: %s", exc)
         return _explicacion_local(veredicto, heuristicas, firma)

@@ -16,9 +16,20 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
 
+    # Orígenes permitidos por CORS, separados por comas. En desarrollo apunta
+    # al frontend local; en producción hay que ponerlo al dominio real.
+    cors_origins: str = "http://localhost:3000"
+
+    # Límite de peticiones a /scan por IP y por minuto.
+    rate_limit_per_minute: int = 10
+
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origen.strip() for origen in self.cors_origins.split(",") if origen.strip()]
 
 
 settings = Settings()

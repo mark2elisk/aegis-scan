@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versi%C3%B3n-0.1.0-10b981" alt="Versión 0.1.0">
+  <img src="https://img.shields.io/badge/versi%C3%B3n-0.2.0-10b981" alt="Versión 0.2.0">
   <img src="https://img.shields.io/badge/licencia-propietaria-f5a524" alt="Licencia propietaria">
   <img src="https://img.shields.io/badge/estado-MVP-8b949e" alt="Estado: MVP">
 </p>
@@ -26,6 +26,7 @@ solo con un código o un "clean"/"infected" sin más contexto.
 
 - Docker y Docker Compose.
 - (Opcional) una clave de la API de OpenAI si quieres las explicaciones generadas por IA — sin ella, el servicio sigue funcionando con explicaciones locales por reglas fijas.
+- Para desarrollar el backend sin Docker en Windows: instala `python-magic-bin` en vez de `python-magic` (ya está resuelto por plataforma en `requirements.txt`, pero si lo instalas a mano en un venv, tenlo en cuenta — `python-magic` a secas no funciona en Windows sin la librería `libmagic`).
 
 ## Instalación
 
@@ -54,6 +55,8 @@ solo con un código o un "clean"/"infected" sin más contexto.
 | `AI_PROVIDER` | `openai` para explicaciones con IA, `none` para desactivarla. | — |
 | `OPENAI_API_KEY` | Clave de la API de OpenAI, si usas `AI_PROVIDER=openai`. | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | `OPENAI_MODEL` | Modelo a usar para la explicación. | Por defecto `gpt-4o-mini`. |
+| `CORS_ORIGINS` | Orígenes permitidos, separados por comas. | Por defecto solo `http://localhost:3000`; ponlo al dominio real antes de desplegar. |
+| `RATE_LIMIT_PER_MINUTE` | Peticiones a `/scan` permitidas por IP y minuto. | Por defecto 10. |
 | `NEXT_PUBLIC_API_URL` | URL del backend que usa el frontend. | Por defecto `http://localhost:8000`. |
 
 Los valores reales van solo en `.env` y nunca se suben al repositorio.
@@ -65,6 +68,18 @@ Con `docker compose up --build` en marcha:
 - Frontend: [http://localhost:3000](http://localhost:3000) — sube un archivo y comprueba que aparece el veredicto (limpio / sospechoso / infectado) con su explicación.
 - Backend: [http://localhost:8000/health](http://localhost:8000/health) — comprueba que `clamav_disponible` es `true`.
 - Prueba con el archivo estándar [EICAR](https://www.eicar.org/download-anti-malware-testfile/) (un archivo de prueba inofensivo que todos los antivirus detectan a propósito) para confirmar que el veredicto `infectado` funciona de principio a fin.
+
+## Tests
+
+El backend tiene tests unitarios (heurísticas) y de los endpoints (`/health`, `/scan`), que corren sin necesitar ClamAV levantado:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -v
+```
+
+Se ejecutan automáticamente en cada push y pull request (ver `.github/workflows/tests.yml`).
 
 ## Esquema
 
@@ -86,6 +101,9 @@ graph LR
 
 ```
 aegis-scan/
+├── .github/
+│   └── workflows/
+│       └── tests.yml          # pytest en cada push/PR
 ├── backend/
 │   ├── app/
 │   │   ├── main.py            # endpoint POST /scan y GET /health
@@ -96,7 +114,9 @@ aegis-scan/
 │   │   │   └── heuristics.py  # entropía, tipo MIME real vs. extensión
 │   │   └── ai/
 │   │       └── explain.py     # explicación del resultado con IA (o local)
+│   ├── tests/                 # tests unitarios y de endpoints
 │   ├── requirements.txt
+│   ├── requirements-dev.txt
 │   └── Dockerfile
 ├── frontend/
 │   ├── app/                   # Next.js (App Router)
@@ -118,6 +138,7 @@ aegis-scan/
 
 | Versión | Fecha | Cambios |
 | --- | --- | --- |
+| v0.2.0 | 2026-09-22 | Llamadas bloqueantes movidas a threadpool, CORS configurable, límite de peticiones, cliente de IA reutilizado, tests automáticos y arreglos en el frontend (arrastrar y soltar de verdad). |
 | v0.1.0 | 2026-09-22 | Primer MVP: escaneo con ClamAV, heurísticas propias, explicación con IA y frontend mínimo. |
 
 El detalle completo está en [CHANGELOG.md](CHANGELOG.md) y cada versión estable tiene su [release](../../releases).
@@ -127,8 +148,6 @@ El detalle completo está en [CHANGELOG.md](CHANGELOG.md) y cada versión establ
 - El archivo subido nunca se ejecuta ni se guarda en disco: se analiza en memoria y se pasa a ClamAV por red.
 - A la IA solo le llegan los metadatos del escaneo (veredicto, firma, señales heurísticas) — nunca el contenido del archivo.
 - Ningún escáner (ni este, ni ningún antivirus comercial) garantiza el 100% frente a amenazas nuevas; un veredicto "limpio" es la mejor información disponible en el momento del análisis, no una garantía absoluta.
-- Antes de exponer esto a internet: revisa `docs/hoja-de-ruta.md` — CORS está abierto (`*`) para desarrollo, y no hay autenticación ni límite de tasa todavía.
-- Nunca subas el archivo `.env` ni claves reales al repositorio.
 
 ## Licencia
 
