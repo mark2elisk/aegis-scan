@@ -2,6 +2,31 @@
 
 Formato basado en versionado semántico (vMAYOR.MENOR.PARCHE).
 
+## [v0.3.0] - 2026-09-23
+### Seguridad
+- Next.js actualizado de 14.2.35 a 16.3.6: `npm audit` reportaba 2
+  vulnerabilidades (1 crítica, 1 alta) sin parche disponible dentro de la
+  serie 14.x, incluyendo ejecución remota de código no autenticada en
+  servidores Windows y en la API de optimización de imágenes con AVIF.
+  React se mantiene en la 18.x (compatible con Next 16, sin necesidad de
+  otro salto mayor). Requiere Node.js 20.9+ (la imagen Docker ya lo cumple).
+- Dockerfile del frontend: build reproducible con `npm ci` a partir de un
+  `package-lock.json` versionado, en vez de `npm install` sin lockfile.
+
+### Añadido
+- Middleware que rechaza subidas por `Content-Length` antes de que se
+  parsee el cuerpo multipart: sin él, Starlette recibía y bufferizaba el
+  archivo entero (memoria/disco) al resolver `UploadFile`, antes de que el
+  endpoint llegara a comprobar `max_upload_mb` — un archivo de varios GB se
+  habría recibido igualmente. Sigue recomendándose un límite también en el
+  proxy de producción, porque un cliente podría declarar un `Content-Length`
+  falso.
+- Tests del flujo completo de `/scan`: veredictos limpio/infectado/sospechoso
+  (por entropía), ClamAV no disponible, límite de tamaño real, rechazo
+  temprano por `Content-Length` y límite de peticiones por minuto.
+- Tests de las explicaciones locales de IA (`ai/explain.py`) para cada
+  veredicto, sin necesitar clave de API.
+
 ## [v0.2.0] - 2026-09-22
 ### Cambiado
 - El escaneo con ClamAV y la explicación con IA (ambas llamadas de red

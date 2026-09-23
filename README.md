@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versi%C3%B3n-0.2.0-10b981" alt="Versión 0.2.0">
+  <img src="https://img.shields.io/badge/versi%C3%B3n-0.3.0-10b981" alt="Versión 0.3.0">
   <img src="https://img.shields.io/badge/licencia-propietaria-f5a524" alt="Licencia propietaria">
   <img src="https://img.shields.io/badge/estado-MVP-8b949e" alt="Estado: MVP">
 </p>
@@ -27,6 +27,7 @@ solo con un código o un "clean"/"infected" sin más contexto.
 - Docker y Docker Compose.
 - (Opcional) una clave de la API de OpenAI si quieres las explicaciones generadas por IA — sin ella, el servicio sigue funcionando con explicaciones locales por reglas fijas.
 - Para desarrollar el backend sin Docker en Windows: instala `python-magic-bin` en vez de `python-magic` (ya está resuelto por plataforma en `requirements.txt`, pero si lo instalas a mano en un venv, tenlo en cuenta — `python-magic` a secas no funciona en Windows sin la librería `libmagic`).
+- Para desarrollar el frontend sin Docker: Node.js **20.9 o superior** (requisito de Next.js 16). La imagen de Docker (`node:20-slim`) ya lo cumple.
 
 ## Instalación
 
@@ -71,7 +72,7 @@ Con `docker compose up --build` en marcha:
 
 ## Tests
 
-El backend tiene tests unitarios (heurísticas) y de los endpoints (`/health`, `/scan`), que corren sin necesitar ClamAV levantado:
+El backend tiene tests unitarios (heurísticas, explicaciones locales de IA) y de los endpoints (`/health`, flujo completo de `/scan` con ClamAV simulado, límite de tamaño, límite de peticiones), que corren sin necesitar ClamAV levantado de verdad:
 
 ```bash
 cd backend
@@ -79,7 +80,7 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Se ejecutan automáticamente en cada push y pull request (ver `.github/workflows/tests.yml`).
+El frontend, por su parte, comprueba tipos (`tsc --noEmit`) y build en CI. Todo se ejecuta automáticamente en cada push y pull request (ver `.github/workflows/tests.yml`).
 
 ## Esquema
 
@@ -138,6 +139,7 @@ aegis-scan/
 
 | Versión | Fecha | Cambios |
 | --- | --- | --- |
+| v0.3.0 | 2026-09-23 | Next.js actualizado a 16.3.6 (parcheaba 2 CVE, una de ellas RCE), rechazo temprano de subidas enormes por `Content-Length` (antes de bufferizar el archivo entero) y cobertura de tests ampliada (flujo completo de `/scan`, límite de tamaño, límite de peticiones, explicaciones locales de IA). |
 | v0.2.0 | 2026-09-22 | Llamadas bloqueantes movidas a threadpool, CORS configurable, límite de peticiones, cliente de IA reutilizado, tests automáticos y arreglos en el frontend (arrastrar y soltar de verdad). |
 | v0.1.0 | 2026-09-22 | Primer MVP: escaneo con ClamAV, heurísticas propias, explicación con IA y frontend mínimo. |
 
@@ -148,6 +150,8 @@ El detalle completo está en [CHANGELOG.md](CHANGELOG.md) y cada versión establ
 - El archivo subido nunca se ejecuta ni se guarda en disco: se analiza en memoria y se pasa a ClamAV por red.
 - A la IA solo le llegan los metadatos del escaneo (veredicto, firma, señales heurísticas) — nunca el contenido del archivo.
 - Ningún escáner (ni este, ni ningún antivirus comercial) garantiza el 100% frente a amenazas nuevas; un veredicto "limpio" es la mejor información disponible en el momento del análisis, no una garantía absoluta.
+- Las subidas con un `Content-Length` por encima de `MAX_UPLOAD_MB` se rechazan antes de parsear el cuerpo, para no bufferizar en memoria/disco un archivo que se va a descartar de todos modos. Esto cubre al cliente que declara el tamaño real; en producción, pon además un límite de tamaño en el proxy/servidor (por ejemplo `client_max_body_size` en nginx), porque un cliente podría enviar un `Content-Length` falso.
+- El limitador de peticiones (`RATE_LIMIT_PER_MINUTE`) identifica al cliente por IP de origen de la conexión. Si despliegas detrás de un proxy/balanceador, configúralo para que reenvíe la IP real (`X-Forwarded-For`) o todas las peticiones contarán como si vinieran de una sola IP (la del proxy).
 
 ## Licencia
 

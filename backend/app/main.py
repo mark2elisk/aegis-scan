@@ -8,6 +8,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.concurrency import run_in_threadpool
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.ai.explain import explicar
 from app.config import settings
@@ -26,7 +27,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="AegisScan",
     description="Escaneo de archivos con ClamAV + explicación de los resultados con IA.",
-    version="0.2.0",
+    version="0.3.0",
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -37,6 +38,54 @@ app.add_middleware(
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
+
+
+class LimiteTamanoMiddleware:
+    """Rechaza la petición por Content-Length antes de que FastAPI parsee el
+    cuerpo multipart completo.
+
+    Sin esto, `UploadFile` no protege de nada: Starlette recibe y bufferiza
+    (memoria y, si supera el umbral, disco) el archivo ENTERO como parte de
+    resolver el parámetro `archivo: UploadFile = File(...)`, antes de que el
+    endpoint llegue a comprobar `max_upload_mb`. Un archivo de varios GB se
+    recibiría entero igualmente. Esta comprobación por cabecera es la primera
+    línea de defensa (barata, antes de leer nada del cuerpo); no sustituye a
+    un límite de tamaño en el proxy/servidor de producción, que sigue siendo
+    necesario porque un cliente podría mentir sobre el Content-Length.
+    """
+
+    # Margen sobre el límite real para no rechazar peticiones legítimas cerca
+    # del límite: multipart añade sus propias cabeceras y boundaries.
+    MARGEN_MULTIPART_BYTES = 64 * 1024
+
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes + self.MARGEN_MULTIPART_BYTES
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            content_length = next(
+                (v for k, v in scope.get("headers", []) if k == b"content-length"),
+                None,
+            )
+            if content_length is not None:
+                try:
+                    declarado = int(content_length)
+                except ValueError:
+                    declarado = None
+                if declarado is not None and declarado > self.max_bytes:
+                    respuesta = JSONResponse(
+                        status_code=413,
+                        content={
+                            "detail": f"El archivo supera el límite de {settings.max_upload_mb} MB."
+                        },
+                    )
+                    await respuesta(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(LimiteTamanoMiddleware, max_bytes=settings.max_upload_bytes)
 
 
 @app.exception_handler(Exception)
